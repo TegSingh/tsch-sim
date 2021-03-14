@@ -874,7 +874,7 @@ export function initialize()
         /* ORCHESTRA_RULES: [ "orchestra_rule_eb_per_time_source",
                               "orchestra_rule_unicast_per_neighbor_link_based",
                               "orchestra_rule_default_common" ], */
-        /* Example configuration for RPL non-storing mode: */
+        /* Example configuration for RPL non-storing mode (works also for the storing one): */
         /* ORCHESTRA_RULES:  [ "orchestra_rule_eb_per_time_source",
                                "orchestra_rule_unicast_per_neighbor_rpl_ns",
                                "orchestra_rule_default_common" ], */
