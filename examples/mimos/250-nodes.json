@@ -1,0 +1,58 @@
+{
+    "MAC_SLOT_DURATION_US": 40000,
+    "SIMULATION_DURATION_SEC": 4000,
+    "RESULTS_DIR": "./results",
+
+    "EMULATE_CONTIKI": 1,
+
+    "POSITIONING_NUM_NODES": 250,
+    "POSITIONING_NUM_DEGREES": 10,
+    "POSITIONING_LINK_QUALITY": 0.9,
+    "POSITIONING_LAYOUT": "Mesh",
+    "POSITIONING_RANDOM_SEED": 123,
+
+    "AWGN_GAUSSIAN_STD": 3.0,
+    "LOGLOSS_PATH_LOSS_EXPONENT": 10.0,
+
+    "APP_WARMUP_PERIOD_SEC": 3600,
+    "APP_PACKET_PERIOD_SEC": 60,
+
+    "ORCHESTRA_RULES": [
+        "orchestra_rule_eb_per_time_source",
+        "orchestra_rule_unicast_per_neighbor_rpl_storing",
+        "orchestra_rule_special_for_root",
+        "orchestra_rule_default_common"
+    ],
+
+    "MAC_KEEPALIVE_TIMEOUT_S": 0,
+    "MAC_DESYNC_THRESHOLD_S": 0,
+    "MAC_MIN_BE": 1,
+    "MAC_MAX_BE": 5,
+    "MAC_EB_PERIOD_S": 128,
+    "MAC_MAX_EB_PERIOD_S": 128,
+
+    "RPL_DIO_INTERVAL_MIN": 16,
+    "RPL_DIO_INTERVAL_DOUBLINGS": 8,
+    "RPL_PROBING_INTERVAL_SEC": 360,
+    "RPL_WITH_PROBING": false,
+    "RPL_DELAY_BEFORE_LEAVING_SEC": 600,
+    "RPL_WITH_DAO_ACK": false,
+    "RPL_DAO_RETRANSMISSION_TIMEOUT_SEC": 30,
+
+    "ORCHESTRA_EBSF_PERIOD":                     37,
+    "ORCHESTRA_COMMON_SHARED_PERIOD":            3,
+    "ORCHESTRA_UNICAST_PERIOD":                  7,
+    "ORCHESTRA_ROOT_PERIOD":                     9,
+
+    "ORCHESTRA_UNICAST_SENDER_BASED" : true,
+
+    "LOG_LEVELS" : {
+        "Main" : 3,
+        "App" : 1,
+        "Node" : 1,
+        "TSCH" : 1,
+        "RPL" : 1,
+        "Link" : 1,
+        "Mobility" : 1
+    }
+}
