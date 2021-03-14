@@ -912,8 +912,6 @@ export class RPL
             this.node.routes.remove_default_route();
             if (nbr) {
                 this.node.routes.add_default_route(nbr.neighbor.id);
-            } else {
-                mlog(log.ERROR, this.node, `drop preferred parent: rank=${this.preferred_parent.rank} link=${this.preferred_parent.link_metric()}`);
             }
 
             this.preferred_parent = nbr;
