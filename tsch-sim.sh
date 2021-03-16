@@ -8,11 +8,13 @@ if [ "$#" -lt 1 ]; then
     exit 1
 fi
 
-CONFIG_FILE=$(realpath $1)
+CONFIG_FILE=$(realpath "$1")
 if [ -d "$CONFIG_FILE" ] ; then
     CONFIG_FILE=$CONFIG_FILE/config.json
 fi
 shift
+
+echo "CONFIG_FILE=${CONFIG_FILE}"
 
 cd `dirname $0`
 

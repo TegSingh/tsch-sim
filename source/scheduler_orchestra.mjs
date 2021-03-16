@@ -518,6 +518,8 @@ function special_for_root_init_on_root(node)
     const timeslot = 0;
     const local_channel_offset = unicast_get_node_channel_offset(node.addr);
 
+    mlog(log.INFO, node, `special for root rule: initialize on the root`);
+
     node.add_cell(sf_rx,
                   constants.CELL_OPTION_RX,
                   constants.CELL_TYPE_NORMAL,
