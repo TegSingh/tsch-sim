@@ -449,6 +449,7 @@ export class Node {
 
     ensure_neighbor(neighbor_id) {
         assert(neighbor_id, "neighbor_id must be set");
+        assert(neighbor_id != this.id, "node cannot be a neighbor to itself")
         if (!this.neighbors.has(neighbor_id)) {
             this.log(log.INFO, `add neighbor id=${neighbor_id}`);
             this.neighbors.set(neighbor_id, new neighbor.Neighbor(this, neighbor_id));
@@ -685,6 +686,7 @@ export class Node {
 
         if (packet.destination_id === this.id) {
             /* emulate a loopback interface */
+            this.log(log.DEBUG, `looping back a packet`);
             this.rx_packet_network_layer(packet);
             this.packet_sent(packet, null, true, null);
             return null;
@@ -1074,6 +1076,7 @@ export class Node {
         new_packet.source = this;
         new_packet.destination_id = packet.source.id;
         new_packet.query_status = constants.PACKET_IS_RESPONSE;
+        new_packet.lasthop_id = this.id;
         new_packet.nexthop_id = this.routes.get_nexthop(packet.source.id);
         if (new_packet.nexthop_id <= 0) {
             new_packet.nexthop_addr = null;
