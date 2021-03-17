@@ -101,9 +101,14 @@ function initialize_random(num_nodes, area_radius)
 
 function get_degrees_links(nodes)
 {
+    let i;
     const links = {};
+    const num_links_per_node = {};
     let num_good_links = 0;
-    for (let i = 0; i < nodes.length; ++i) {
+    for (i = 0; i < nodes.length; ++i) {
+        num_links_per_node[i] = 0;
+    }
+    for (i = 0; i < nodes.length; ++i) {
         const n1 = nodes[i];
         for (let j = i + 1; j < nodes.length; ++j) {
             const n2 = nodes[j];
@@ -111,12 +116,45 @@ function get_degrees_links(nodes)
             if (link.success_rate >= config.POSITIONING_LINK_QUALITY) {
                 const key = i * nodes.length + j;
                 links[key] = link;
-                num_good_links++;
+                num_good_links += 1;
+                num_links_per_node[i] += 1;
+                num_links_per_node[j] += 1;
             }
         }
     }
+    let num_disconnected = 0;
+    for (i = 0; i < nodes.length; ++i) {
+        if (num_links_per_node[i] === 0) {
+            num_disconnected += 1;
+        }
+    }
+    
     const degrees = 2 * num_good_links / nodes.length;
-    return { degrees, links };
+    return { degrees, links, num_disconnected, num_links_per_node };
+}
+
+function connect_node(nodes, num_links_per_node)
+{
+    let i;
+    let connected_node = null;
+    let disconnected_node = null;
+    for (i = nodes.length - 1; i >= 0; --i) {
+        if (num_links_per_node[i] === 0) {
+            disconnected_node = i;
+        } else {
+            connected_node = i;
+        }
+        if (connected_node != null && disconnected_node != null) {
+            break;
+        }
+    }
+
+    if (connected_node != null && disconnected_node != null) {
+        nodes[disconnected_node].pos_x = nodes[connected_node].pos_x;
+        nodes[disconnected_node].pos_y = nodes[connected_node].pos_y;
+        nodes[disconnected_node].distance = nodes[connected_node].distance;
+        nodes[disconnected_node].angle = nodes[connected_node].angle;
+    }
 }
 
 function increase_degree(nodes, area_radius)
@@ -188,7 +226,7 @@ function generate_mesh(num_nodes, degrees, area_radius=null)
         area_radius = Math.trunc(config.LOGLOSS_TRANSMIT_RANGE_M * Math.sqrt(num_nodes) * 4 / degrees);
     }
 
-    const nodes = initialize_random(num_nodes, area_radius);
+    let nodes = initialize_random(num_nodes, area_radius);
     let net = get_degrees_links(nodes);
     while (!(min_acceptable_degrees <= net.degrees && net.degrees <= max_acceptable_degrees)) {
         if (net.degrees < min_acceptable_degrees) {
@@ -197,6 +235,24 @@ function generate_mesh(num_nodes, degrees, area_radius=null)
             area_radius = decrease_degree(nodes, area_radius);
         }
         net = get_degrees_links(nodes);
+    }
+
+    if (net.num_disconnected) {
+        log.log(log.INFO, null, "Main", `trying to fix the generated network: some nodes are disconnected`);
+    }
+
+    /* try to fix disconnected nodes */
+    while (net.num_disconnected) {
+        /* save a copy of the current state first */
+        const old_nodes = JSON.parse(JSON.stringify(nodes));
+        connect_node(nodes, net.num_links_per_node);
+        net = get_degrees_links(nodes);
+        if (net.degrees > max_acceptable_degrees) {
+            /* restore to previous version of nodes */
+            log.log(log.ERROR, null, "Main", `failed to generate a connected network with ${num_nodes} nodes and ${degrees} degrees: some nodes remain disconnected`);
+            nodes = old_nodes;
+            break;
+        }
     }
 
     return nodes;
