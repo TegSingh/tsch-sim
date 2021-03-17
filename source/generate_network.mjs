@@ -40,6 +40,10 @@ import * as log from './log.mjs';
 import { get_node_distance } from './utils.mjs';
 import { rng } from './random.mjs';
 
+import dirnames from "./dirnames.mjs";
+import fs from 'fs';
+import path from 'path';
+
 function get_rssi(n1, n2)
 {
     let d = get_node_distance(n1, n2);
@@ -89,8 +93,12 @@ function distance_from_link_quality(lq)
 function initialize_random(num_nodes, area_radius)
 {
     const nodes = [];
-    for (let i = 0; i < num_nodes; ++i) {
-        const distance = rng.random() * area_radius;
+    /* first, add the gateway at the center */
+    nodes.push({pos_x: 0.0, pos_y: 0.0, distance: 0.0, angle: 0.0});
+    for (let i = 1; i < num_nodes; ++i) {
+        const u = rng.random();
+        /* to ensure uniform distribution in the circle, make nodes quadratically more likely to be in the outer rings */
+        const distance = area_radius - u * u * area_radius;
         const angle = rng.random() * Math.PI * 2;
         const pos_x = distance * Math.sin(angle);
         const pos_y = distance * Math.cos(angle);
@@ -150,50 +158,13 @@ function connect_node(nodes, num_links_per_node)
     }
 
     if (connected_node != null && disconnected_node != null) {
-        nodes[disconnected_node].pos_x = nodes[connected_node].pos_x;
-        nodes[disconnected_node].pos_y = nodes[connected_node].pos_y;
-        nodes[disconnected_node].distance = nodes[connected_node].distance;
+        /* move the disconnected node to a position where it has a link at least to the connected node */
+        const delta = rng.random() * (config.LOGLOSS_TRANSMIT_RANGE_M / 3);
+        nodes[disconnected_node].distance = nodes[connected_node].distance - delta;
         nodes[disconnected_node].angle = nodes[connected_node].angle;
+        nodes[disconnected_node].pos_x = nodes[disconnected_node].distance * Math.sin(nodes[disconnected_node].angle);
+        nodes[disconnected_node].pos_y = nodes[disconnected_node].distance * Math.cos(nodes[disconnected_node].angle);
     }
-}
-
-function increase_degree(nodes, area_radius)
-{
-    let furthest_distance = nodes[0].distance;
-    let furthest_node = 0;
-    for (let j = 1; j < nodes.length; ++j) {
-        if (nodes[j].distance > furthest_distance) {
-            furthest_distance = nodes[j].distance;
-            furthest_node = j;
-        }
-    }
-    const angle = nodes[furthest_node].angle;
-    const distance = rng.random() * furthest_distance;
-    nodes[furthest_node].pos_x = distance * Math.sin(angle);
-    nodes[furthest_node].pos_y = distance * Math.cos(angle);
-    nodes[furthest_node].distance = distance;
-    return area_radius;
-}
-
-function decrease_degree(nodes, area_radius)
-{
-    /* increase the area size */
-    area_radius *= 1.1;
-    
-    let nearest_distance = nodes[0].distance;
-    let nearest_node = 0;
-    for (let j = 1; j < nodes.length; ++j) {
-        if (nodes[j].distance < nearest_distance) {
-            nearest_distance = nodes[j].distance;
-            nearest_node = j;
-        }
-    }
-    const angle = nodes[nearest_node].angle;
-    const distance = nearest_distance + rng.random() * (area_radius - nearest_distance);
-    nodes[nearest_node].pos_x = distance * Math.sin(angle);
-    nodes[nearest_node].pos_y = distance * Math.cos(angle);
-    nodes[nearest_node].distance = distance;
-    return area_radius;
 }
 
 /*
@@ -201,7 +172,7 @@ function decrease_degree(nodes, area_radius)
  * - initialize random positions depending on the number of links expected and on the network size
  * - while not meeting the constraints, keep moving nodes (further apart or closer together)
  */
-function generate_mesh(num_nodes, degrees, area_radius=null)
+function generate_mesh(num_nodes, degrees, initial_area_radius=null)
 {
     log.log(log.INFO, null, "Main", `generating a mesh network with ${num_nodes} nodes and ${degrees} degrees`);
 
@@ -219,20 +190,29 @@ function generate_mesh(num_nodes, degrees, area_radius=null)
     }
 
     /* relax the constraint a bit and accept values close to the required */
-    const min_acceptable_degrees = Math.min(degrees - 0.5, degrees * 0.95);
-    const max_acceptable_degrees = Math.max(degrees + 0.5, degrees * 1.05);
+    const min_acceptable_degrees = Math.min(degrees - 0.5, degrees * 0.9);
+    const max_acceptable_degrees = Math.max(degrees + 0.5, degrees * 1.1);
 
-    if (!area_radius) {
-        area_radius = Math.trunc(config.LOGLOSS_TRANSMIT_RANGE_M * Math.sqrt(num_nodes) * 4 / degrees);
+    if (!initial_area_radius) {
+        initial_area_radius = Math.trunc(config.LOGLOSS_TRANSMIT_RANGE_M * Math.sqrt(num_nodes) * 3 / degrees);
     }
 
-    let nodes = initialize_random(num_nodes, area_radius);
+    let area_multiplier = 1.0;
+    let nodes = initialize_random(num_nodes, area_multiplier * initial_area_radius);
     let net = get_degrees_links(nodes);
-    while (!(min_acceptable_degrees <= net.degrees && net.degrees <= max_acceptable_degrees)) {
+    log.log(log.INFO, null, "Main", `initialized, net.degrees=${net.degrees} range=[${min_acceptable_degrees},${max_acceptable_degrees}]`);
+
+    while (!(min_acceptable_degrees <= net.degrees && net.degrees <= degrees)) {
         if (net.degrees < min_acceptable_degrees) {
-            area_radius = increase_degree(nodes, area_radius);
+            log.log(log.INFO, null, "Main", `increase degrees, current net.degrees=${net.degrees}`);
+            area_multiplier /= 1.03;
+            nodes = initialize_random(num_nodes, area_multiplier * initial_area_radius);
+            net = get_degrees_links(nodes);
         } else {
-            area_radius = decrease_degree(nodes, area_radius);
+            log.log(log.INFO, null, "Main", `decrease degrees, current net.degrees=${net.degrees} area_multiplier=${area_multiplier}`);
+            area_multiplier *= 1.03;
+            nodes = initialize_random(num_nodes, area_multiplier * initial_area_radius);
+            net = get_degrees_links(nodes);
         }
         net = get_degrees_links(nodes);
     }
@@ -247,7 +227,8 @@ function generate_mesh(num_nodes, degrees, area_radius=null)
         const old_nodes = JSON.parse(JSON.stringify(nodes));
         connect_node(nodes, net.num_links_per_node);
         net = get_degrees_links(nodes);
-        if (net.degrees > max_acceptable_degrees) {
+        log.log(log.INFO, null, "Main", `connected a node, new net.degrees=${net.degrees}`);
+        if (!(min_acceptable_degrees <= net.degrees && net.degrees <= max_acceptable_degrees)) {
             /* restore to previous version of nodes */
             log.log(log.ERROR, null, "Main", `failed to generate a connected network with ${num_nodes} nodes and ${degrees} degrees: some nodes remain disconnected`);
             nodes = old_nodes;
@@ -309,6 +290,31 @@ function generate_grid(num_nodes)
     return nodes;
 }
 
+function save_generated_network(nodes)
+{
+    const contents = {
+        LOGLOSS_TRANSMIT_RANGE_M: config.LOGLOSS_TRANSMIT_RANGE_M,
+        LOGLOSS_RX_SENSITIVITY_DBM: config.LOGLOSS_RX_SENSITIVITY_DBM,
+        LOGLOSS_RSSI_INFLECTION_POINT_DBM: config.LOGLOSS_RSSI_INFLECTION_POINT_DBM,
+        LOGLOSS_PATH_LOSS_EXPONENT: config.LOGLOSS_PATH_LOSS_EXPONENT,
+        AWGN_GAUSSIAN_STD: config.AWGN_GAUSSIAN_STD,
+        NODE_TYPES: [{
+            NAME: "node",
+            START_ID: 1,
+            COUNT: nodes.length,
+            CONNECTIONS: [{"NODE_TYPE": "node", "LINK_MODEL" : "LogisticLoss"}]
+        }],
+        POSITIONS: []
+    };
+    for (let i = 0; i < nodes.length; ++i) {
+        contents.POSITIONS.push({ID: i + 1, X: nodes[i].pos_x, Y: nodes[i].pos_y});
+    }
+
+    const is_child = config.SIMULATION_RUN_ID !== 0;
+    const filename = is_child ? `positions_${config.SIMULATION_RUN_ID}.json` : "positions.json";
+    fs.writeFileSync(path.join(dirnames.results_dir, filename), JSON.stringify(contents, null, 2));
+}
+
 export default function generate_network(num_nodes)
 {
     let result;
@@ -339,6 +345,11 @@ export default function generate_network(num_nodes)
     } else {
         log.log(log.ERROR, null, "Main", `unknown layout ${config.POSITIONING_LAYOUT}, ignoring; select one of: Mesh/Star/Line/Grid`);
         result = null;
+    }
+
+    if (config.SAVE_RESULTS) {
+        /* write the result to a file */
+        save_generated_network(result);
     }
 
     return result;
