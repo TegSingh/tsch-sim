@@ -51,7 +51,7 @@ export class PacketSource {
         this.is_fixed = is_fixed != null ? is_fixed : false;
         this.is_query = is_query != null ? is_query : false;
         this.length = length != null ? length : config.APP_PACKET_SIZE;
-        this.warmup_period = warmup_period != null ? warmup_period : config.APP_WARMUP_PERIOD_SEC; 
+        this.warmup_period = warmup_period != null ? warmup_period : config.APP_WARMUP_PERIOD_SEC;
         this.is_in_warmup = true;
         this.timer_time = this.warmup_period;
 

@@ -16,16 +16,24 @@ CONFIG_TEMPLATE_NAME = "config.json.tmpl"
 
 DEFAULT_OPTIONS = {
     "RESULTS_DIR": "results",
-    "SCHEDULING_ALGORITHM": "Orchestra",
-    "TSCH_SCHEDULE_CONF_DEFAULT_LENGTH": 7,
+#    "ORCHESTRA_EBSF_PERIOD": 37,
+    "ORCHESTRA_EBSF_PERIOD": 51,
+    "ORCHESTRA_COMMON_SHARED_PERIOD": 3,
     "ORCHESTRA_UNICAST_PERIOD": 7,
-    "ORCHESTRA_RULES": """[
-        "orchestra_rule_eb_per_time_source",
-        "orchestra_rule_unicast_per_neighbor_rpl_storing",
-        "orchestra_rule_default_common"
-    ]""",
-    "ORCHESTRA_UNICAST_SENDER_BASED": 0,
+    "ORCHESTRA_ROOT_PERIOD": 7,
 }
+
+#GOOD_PERIODS = [3, 5, 7, 9, 11, 13, 17, 21, 25, 33]
+
+#GOOD_PERIODS = [5, 9, 11, 13, 17, 21, 25]
+
+GOOD_PERIODS = [5, 7, 11, 17, 23, 27]
+
+#GOOD_CSP = [7, 11]
+#GOOD_UNICAST = [17, 25, 31]
+
+#GOOD_CSP = [7, 11]
+#GOOD_UNICAST = [3, 5, 9]
 
 class Experiment:
     def __init__(self, name, options):
@@ -39,7 +47,7 @@ class Experiment:
 
     def run(self):
         filename = generate_config_file(self.name, self.options)
-        subprocess.call(" ".join([SIMULATOR, filename]), shell=True, stdout=subprocess.DEVNULL)
+        subprocess.call(" ".join([SIMULATOR, '"' + filename + '"']), shell=True, stdout=subprocess.DEVNULL)
 
     def load_results(self):
         with open(os.path.join(self.results_dir, "stats_merged.json"), "r") as f:
@@ -99,8 +107,8 @@ def extract_metrics(experiments, arguments):
             total2 = 0
             num_nodes = 0
             for node in run_results:
-                # ignore the global summary information and the results on the root node
-                if node in ["global-stats", "1"]:
+                # do NOT ignore the global summary information and the results on the root node!
+                if node in ["global-stats"]:
                     continue
                 total1 += run_results[node][metric1_name]
                 total2 += run_results[node][metric2_name]
@@ -108,6 +116,7 @@ def extract_metrics(experiments, arguments):
             # compute the average metric across all nodes
             avg1 = total1 / num_nodes
             avg2 = total2 / num_nodes
+            #print("{}: {} and {}: {}".format(metric1_name, avg1, metric2_name, avg2))
             exp_results1.append(avg1)
             exp_results2.append(avg2)
 
@@ -115,7 +124,8 @@ def extract_metrics(experiments, arguments):
     return results
 
 def plot(experiments, function, arguments, title):
-    pl.figure(figsize=(7, 4))
+#    pl.figure(figsize=(7, 4))
+    pl.figure(figsize=(70, 8))
     pl.gca().xaxis.grid(False)
     pl.gca().yaxis.grid(True)
 
@@ -139,14 +149,17 @@ def plot(experiments, function, arguments, title):
     for b in bars:
         b.set_edgecolor("black")
         b.set_linewidth(1)
-    pl.xticks(x, [exp.name for exp in experiments])
+    pl.xticks(x, [exp.name for exp in experiments], rotation=90)
 
     pl.ylabel(title)
     # use 0 or `total_min_value` as the lower bound
     if "PDR" in title:
-        pl.ylim(total_min_value, total_max_value)
+        #pl.ylim(total_min_value, total_max_value)
+        pl.ylim(0, 100)
     else:
         pl.ylim(0, total_max_value)
+
+    pl.tight_layout()
 
     pl.savefig("plot {}.pdf".format(title), format="pdf")
     pl.close()
@@ -155,27 +168,20 @@ def main():
     # construct experiments
     print("constructing experiments...")
     experiments = []
-    experiments.append(Experiment("TSCH-min-3", {
-        "SCHEDULING_ALGORITHM": "6tischMin",
-        "TSCH_SCHEDULE_CONF_DEFAULT_LENGTH": 3}))
-    experiments.append(Experiment("TSCH-min-5", {
-        "SCHEDULING_ALGORITHM": "6tischMin",
-        "TSCH_SCHEDULE_CONF_DEFAULT_LENGTH": 5}))
-    experiments.append(Experiment("TSCH-RB-7", {
-        "ORCHESTRA_UNICAST_PERIOD": 7,
-        "ORCHESTRA_UNICAST_SENDER_BASED": 0}))
-    experiments.append(Experiment("TSCH-SB-7", {
-        "ORCHESTRA_UNICAST_PERIOD": 7,
-        "ORCHESTRA_UNICAST_SENDER_BASED": 1}))
-    experiments.append(Experiment("TSCH-SB-47", {
-        "ORCHESTRA_UNICAST_PERIOD": 47,
-        "ORCHESTRA_UNICAST_SENDER_BASED": 1}))
-
+    for csp in GOOD_PERIODS:
+        for unicast in GOOD_PERIODS:
+#    for csp in GOOD_CSP:
+#        for unicast in GOOD_UNICAST:
+            if csp % unicast != 0 and unicast % csp != 0:
+                experiments.append(Experiment("common_{}_unicast_{}".format(csp, unicast), {
+                    "ORCHESTRA_COMMON_SHARED_PERIOD": csp,
+                    "ORCHESTRA_UNICAST_PERIOD": unicast,
+                    "ORCHESTRA_ROOT_PERIOD": 6}))
     # run the experiments
     print("running experiments...")
     for exp in experiments:
         print("   {}...".format(exp.name))
-        exp.run()
+#        exp.run()
 
     # load the experiment results
     print("loading experiment results...")
@@ -191,8 +197,8 @@ def main():
     plot(experiments, extract_metric, ["tsch_join_time_sec", 3600], "TSCH joining time, seconds")
     plot(experiments, extract_metric, ["avg_current_joined_uA", 0], "Average current consumption, uA")
     plot(experiments, extract_metric, ["radio_duty_cycle_joined", 0], "Radio duty cycle, %")
-    plot(experiments, extract_metrics, ["app_num_lost", "app_num_endpoint_rx", lambda x, y: 100.0 * (1.0 - x / (x + y))], "Application PDR, %")
-    plot(experiments, extract_metrics, ["mac_parent_acked", "mac_parent_tx_unicast", lambda x, y: 100.0 * x / y], "Link layer PAR, %")
+    plot(experiments, extract_metrics, ["app_num_lost", "app_num_endpoint_rx", lambda x, y: 100.0 * (1.0 - x / (x + y)) if x + y else 0], "Application PDR, %")
+    plot(experiments, extract_metrics, ["mac_parent_acked", "mac_parent_tx_unicast", lambda x, y: 100.0 * x / y if y else 0], "Link layer PAR, %")
 
 if __name__ == "__main__":
     main()
