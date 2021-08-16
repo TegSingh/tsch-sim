@@ -25,6 +25,7 @@ function set_timings()
     time.timeline.slot_timings = timings_usec.map(x => x / 1000000); /* convert to seconds */
 }
 
+// Method to read schedule.json file
 function read_schedule(node) {
     
     let schedule_file_data = null;
