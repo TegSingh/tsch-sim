@@ -84,6 +84,16 @@ export function on_packet_ready(node, packet)
 
     let timeslot;
     // Use unicast for everything and replace/remove the first if statement block
+    if (packet.nexthop_id === constants.ROOT_NODE_ID) {
+        /* To a forwarder or gateway */
+        // if (node.id === 2)
+        //     timeslot = 3
+        // if (node.id === 3)
+        //     timeslot = 4
+        // if (node.id === 4)
+        //     timeslot = 5
+        timeslot = 0xffffffff;
+    } else 
     if (node.config.ROUTING_IS_LEAF) {
         const local_offset = 1 + node.addr.u8[node.addr.u8.length - 1] % (config.TSCH_SCHEDULE_CONF_DEFAULT_LENGTH - 1);
 
@@ -166,10 +176,28 @@ export function node_init(node)
     } else {
         for (let i = 1; i < config.TSCH_SCHEDULE_CONF_DEFAULT_LENGTH; ++i) {
             node.add_cell(sf_common,
-                          constants.CELL_OPTION_RX | constants.CELL_OPTION_TX | constants.CELL_OPTION_SHARED,
-                          constants.CELL_TYPE_NORMAL,
-                          constants.BROADCAST_ID,
-                          i, local_offset);
+                        constants.CELL_OPTION_RX | constants.CELL_OPTION_TX | constants.CELL_OPTION_SHARED,
+                        constants.CELL_TYPE_NORMAL,
+                        constants.BROADCAST_ID,
+                        i, local_offset);
+        // if (node.id === 2)
+        //     node.add_cell(sf_common,
+        //                 constants.CELL_OPTION_RX | constants.CELL_OPTION_TX | constants.CELL_OPTION_SHARED,
+        //                 constants.CELL_TYPE_NORMAL,
+        //                 constants.BROADCAST_ID,
+        //                 3, 2);
+        // if (node.id === 3)
+        //     node.add_cell(sf_common,
+        //                 constants.CELL_OPTION_RX | constants.CELL_OPTION_TX | constants.CELL_OPTION_SHARED,
+        //                 constants.CELL_TYPE_NORMAL,
+        //                 constants.BROADCAST_ID,
+        //                 4, 2);
+        // if (node.id === 4)
+        //     node.add_cell(sf_common,
+        //                 constants.CELL_OPTION_RX | constants.CELL_OPTION_TX | constants.CELL_OPTION_SHARED,
+        //                 constants.CELL_TYPE_NORMAL,
+        //                 constants.BROADCAST_ID,
+        //                 5, 2);
         }
     }
 }
